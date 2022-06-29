@@ -6,7 +6,7 @@
 
 Well, I sometimes I do. Nice for testing stuff on remote VPS's without having to pull them locally.
 
-Requires ffmpeg
+Requires ffmpeg, currently only works on linux (tested on ubuntu 22.04)
 
 Usage:
 ```
