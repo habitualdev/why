@@ -18,6 +18,8 @@ import (
 
 const UPPER_HALF_BLOCK = "▀"
 
+var size int
+
 // 48;2;r;g;bm - set background colour to rgb
 func rgbBackgroundSequence(r, g, b uint8) string {
 	return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b)
@@ -101,10 +103,6 @@ func renderPicture(picture []byte, skip int) string {
 }
 
 func ExtractFrames(filename string) {
-	// if the frames directory exists, delete it
-	if _, err := os.Stat("frames"); err == nil {
-		os.RemoveAll("frames")
-	}
 	// create the frames directory
 	os.Mkdir("frames", 0777)
 	// extract the frames
@@ -133,7 +131,18 @@ func main() {
 		}
 	}
 
-	ExtractFrames(os.Args[1])
+	os.RemoveAll("frames")
+
+	go ExtractFrames(os.Args[1])
+
+	extractCheck := true
+
+	for extractCheck {
+		if _, err := os.Stat("frames/1.jpg"); err == nil {
+			extractCheck = false
+		}
+	}
+
 	app := tview.NewApplication()
 	box := tview.NewTextView().SetDynamicColors(true)
 	box2 := tview.NewTextView().SetDynamicColors(true)
@@ -144,20 +153,27 @@ func main() {
 	box2.SetText("Loading...")
 	box.SetText("Loading...")
 
-	files, err := os.ReadDir("frames")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	size := len(files)
+	go func() {
+		for {
+			files, err := os.ReadDir("frames")
+			if err != nil {
+				log.Fatal(err)
+			}
+			size = len(files)
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
 
 	go func() {
+		loopCheck := true
+		i := 1
 		go app.SetRoot(box, true).Run()
-		for i := 1; i <= size; i++ {
+		for loopCheck {
 			start := time.Now()
 			buf, err := os.ReadFile("frames/" + strconv.Itoa(i) + ".jpg")
 			if err != nil {
-				log.Fatal(err)
+				loopCheck = false
+				break
 			}
 			if boxNum == 0 {
 				app.QueueUpdateDraw(
@@ -181,6 +197,7 @@ func main() {
 			for time.Now().Sub(start) < (33 * time.Millisecond) {
 				time.Sleep(1 * time.Millisecond)
 			}
+			i++
 		}
 	}()
 	<-c
