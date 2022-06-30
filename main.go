@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 )
 
 const UPPER_HALF_BLOCK = "▀"
@@ -92,7 +93,7 @@ func openImage(picture []byte) image.Image {
 
 func renderPicture(picture []byte, skip int) string {
 	if skip == 0 {
-		skip = 5
+		skip = 7
 	}
 	img := openImage(picture)
 	str := convertImageToANSI(img, skip)
@@ -107,7 +108,7 @@ func ExtractFrames(filename string) {
 	// create the frames directory
 	os.Mkdir("frames", 0777)
 	// extract the frames
-	c := exec.Command("ffmpeg", "-i", filename, "frames/%d.jpg")
+	c := exec.Command("ffmpeg", "-i", filename, "-filter:v", "fps=30", "frames/%d.jpg")
 	c.Run()
 }
 
@@ -142,14 +143,19 @@ func main() {
 
 	box2.SetText("Loading...")
 	box.SetText("Loading...")
-	go app.SetRoot(box, true).Run()
+
 	files, err := os.ReadDir("frames")
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	size := len(files)
+
 	go func() {
-		for _, file := range files {
-			buf, err := os.ReadFile("frames/" + file.Name())
+		go app.SetRoot(box, true).Run()
+		for i := 1; i <= size; i++ {
+			start := time.Now()
+			buf, err := os.ReadFile("frames/" + strconv.Itoa(i) + ".jpg")
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -158,19 +164,22 @@ func main() {
 					func() {
 						text := renderPicture(buf, skip)
 						ansi := tview.TranslateANSI(text)
-						box.SetText(ansi)
+						box.SetText(ansi + "\n" + strconv.Itoa(i) + "/" + strconv.Itoa(size) + " frames")
 						boxNum = 1
-						app.SetRoot(box, true)
+						app.SetRoot(box2, true)
 					})
 			} else {
 				app.QueueUpdateDraw(
 					func() {
 						text := renderPicture(buf, skip)
 						ansi := tview.TranslateANSI(text)
-						box2.SetText(ansi)
+						box2.SetText(ansi + "\n" + strconv.Itoa(i) + "/" + strconv.Itoa(size) + " frames")
 						boxNum = 0
-						app.SetRoot(box2, true)
+						app.SetRoot(box, true)
 					})
+			}
+			for time.Now().Sub(start) < (33 * time.Millisecond) {
+				time.Sleep(1 * time.Millisecond)
 			}
 		}
 	}()
