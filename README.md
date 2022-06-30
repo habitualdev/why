@@ -12,7 +12,7 @@ Requires ffmpeg, currently only works on linux (tested on ubuntu 22.04)
 
 Turns out its not too hard to draw a picture inside a terminal. The unicode "half block" character (▀) is basically a pixel, so when combined with ansi escape codes, you can individually colorize each one. All video is is images played one after another, so I use ffmpeg to make me a directory of images I then iterate through. To increase display performance, there are actually 2 text windows that alternate being visible, which reduces screen tearing from the text printing across it.
 
-Usage:
+## Usage
 ```
 ./why <video> <optional:scaling>
 ```
