@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"image"
 	"image/color"
@@ -12,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -19,6 +21,15 @@ import (
 const UPPER_HALF_BLOCK = "▀"
 
 var size int
+var i int
+var paused bool
+
+func secondsToMinutes(inSeconds int) string {
+	minutes := inSeconds / 60
+	seconds := inSeconds % 60
+	str := fmt.Sprintf("%d:%d", minutes, seconds)
+	return str
+}
 
 // 48;2;r;g;bm - set background colour to rgb
 func rgbBackgroundSequence(r, g, b uint8) string {
@@ -87,7 +98,7 @@ func openImage(picture []byte) image.Image {
 	reader := bytes.NewReader(picture)
 	img, _, err := image.Decode(reader)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	return img
@@ -113,6 +124,7 @@ func ExtractFrames(filename string) {
 func main() {
 	skip := 0
 	boxNum := 0
+	paused = false
 	// if filename doesn't exist, exit
 	if len(os.Args) < 2 {
 		log.Fatal("Please provide a filename")
@@ -147,6 +159,44 @@ func main() {
 	box := tview.NewTextView().SetDynamicColors(true)
 	box2 := tview.NewTextView().SetDynamicColors(true)
 
+	box2.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Rune() == 'd' {
+			i = i + 30
+			if i >= size {
+				i = size - 1
+			}
+		}
+		if event.Rune() == 'a' {
+			i = i - 30
+			if i < 0 {
+				i = 0
+			}
+		}
+		if event.Rune() == ' ' {
+			paused = !paused
+		}
+		return event
+	})
+
+	box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Rune() == 'd' {
+			i = i + 30
+			if i >= size {
+				i = size - 1
+			}
+		}
+		if event.Rune() == 'a' {
+			i = i - 30
+			if i < 0 {
+				i = 0
+			}
+		}
+		if event.Rune() == ' ' {
+			paused = !paused
+		}
+		return event
+	})
+
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
@@ -166,38 +216,64 @@ func main() {
 
 	go func() {
 		loopCheck := true
-		i := 1
+
 		go app.SetRoot(box, true).Run()
+		i = 1
 		for loopCheck {
-			start := time.Now()
-			buf, err := os.ReadFile("frames/" + strconv.Itoa(i) + ".jpg")
-			if err != nil {
-				loopCheck = false
-				break
+			if paused {
+				continue
 			}
-			if boxNum == 0 {
-				app.QueueUpdateDraw(
-					func() {
-						text := renderPicture(buf, skip)
-						ansi := tview.TranslateANSI(text)
-						box.SetText(ansi + "\n" + strconv.Itoa(i) + "/" + strconv.Itoa(size) + " frames")
-						boxNum = 1
-						app.SetRoot(box2, true)
-					})
-			} else {
-				app.QueueUpdateDraw(
-					func() {
-						text := renderPicture(buf, skip)
-						ansi := tview.TranslateANSI(text)
-						box2.SetText(ansi + "\n" + strconv.Itoa(i) + "/" + strconv.Itoa(size) + " frames")
-						boxNum = 0
-						app.SetRoot(box, true)
-					})
+			if i != size {
+				start := time.Now()
+				buf, _ := os.ReadFile("frames/" + strconv.Itoa(i) + ".jpg")
+				if boxNum == 0 {
+					app.QueueUpdateDraw(
+						func() {
+							text := renderPicture(buf, skip)
+							w := len(strings.Split(text, "\n")[0])
+							spaceb := w - 37
+							if spaceb < 0 {
+								spaceb = 0
+							}
+							spacet := w - 10
+							if spacet < 0 {
+								spacet = 0
+							}
+							spacert := strings.Repeat(" ", spacet/100)
+							spacerb := strings.Repeat(" ", spaceb/100)
+							ansi := tview.TranslateANSI(text)
+							box.SetText(ansi + "  " + spacert + secondsToMinutes(i/30) + "/" + secondsToMinutes(size/30) +
+								"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->")
+							boxNum = 1
+							app.SetRoot(box2, true)
+						})
+				} else {
+					app.QueueUpdateDraw(
+						func() {
+							text := renderPicture(buf, skip)
+							w := len(strings.Split(text, "\n")[0])
+							spaceb := w - 37
+							if spaceb < 0 {
+								spaceb = 0
+							}
+							spacet := w - 10
+							if spacet < 0 {
+								spacet = 0
+							}
+							spacert := strings.Repeat(" ", spacet/100)
+							spacerb := strings.Repeat(" ", spaceb/100)
+							ansi := tview.TranslateANSI(text)
+							box2.SetText(ansi + "  " + spacert + secondsToMinutes(i/30) + "/" + secondsToMinutes(size/30) +
+								"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->")
+							boxNum = 0
+							app.SetRoot(box, true)
+						})
+				}
+				for time.Now().Sub(start) < (33 * time.Millisecond) {
+					time.Sleep(1 * time.Millisecond)
+				}
+				i++
 			}
-			for time.Now().Sub(start) < (33 * time.Millisecond) {
-				time.Sleep(1 * time.Millisecond)
-			}
-			i++
 		}
 	}()
 	<-c
