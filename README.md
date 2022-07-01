@@ -4,7 +4,8 @@
 
 "Why? is the question you ask yourself when you see this project. Who wants to watch a video in the terminal?
 
-Well, I sometimes I do. Nice for testing stuff on remote VPS's without having to pull them locally.
+Well, I sometimes I do. Nice for testing stuff on remote VPS's without having to pull them locally. Now also supports
+printing jpeg, bmp, and png images to the terminal.
 
 Requires ffmpeg, currently only works on linux (tested on ubuntu 22.04)
 
@@ -14,7 +15,8 @@ Turns out its not too hard to draw a picture inside a terminal. The unicode "hal
 
 ## Usage
 ```
-./why <video> <optional:scaling>
+./why -file <video> -scale <optional:default 7> 
+./why <video>
 ```
 
 Scaling defaults to 1/7. The number supplied in the command becomes the denominator, e.g. 10 is 1/10.

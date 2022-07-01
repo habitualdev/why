@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	_ "golang.org/x/image/bmp"
 	"image"
 	"image/color"
 	_ "image/jpeg"
+	_ "image/png"
 	"log"
 	"os"
 	"os/exec"
@@ -19,6 +22,9 @@ import (
 )
 
 const UPPER_HALF_BLOCK = "▀"
+
+var imageMagic = [][]byte{{0x89, 0x50, 0x4E, 0x47, 0x0D}, {0x42, 0x4D}, {0xFF, 0xD8, 0xFF, 0xDB}, {0xFF, 0xD8, 0xFF, 0xE0},
+	{0xFF, 0xD8, 0xFF, 0xEE}, {0xFF, 0xD8, 0xFF, 0xE1}, {0xFF, 0xD8, 0xFF, 0xE0}}
 
 var size int
 var i int
@@ -122,161 +128,175 @@ func ExtractFrames(filename string) {
 }
 
 func main() {
+
+	var scale = flag.Int("scale", 7, "Scale of the image")
+	var file = flag.String("file", "", "File to render")
+	var mediaType string
+	flag.Parse()
+
 	skip := 0
 	boxNum := 0
 	paused = false
 	// if filename doesn't exist, exit
-	if len(os.Args) < 2 {
-		log.Fatal("Please provide a filename")
-	}
-
-	if len(os.Args) > 1 {
-		if _, err := os.Stat(os.Args[1]); err != nil {
-			log.Fatal("File not found")
-		}
-		if len(os.Args) > 2 {
-			if n, err := strconv.Atoi(os.Args[2]); err == nil {
-				skip = n
-			} else {
-				log.Fatal("Invalid skip value")
-			}
-		}
-	}
-
 	os.RemoveAll("frames")
+	if *file == "" {
+		*file = os.Args[1]
+	}
+	if _, err := os.Stat(*file); err != nil {
+		if os.IsNotExist(err) {
+			log.Fatal("File does not exist")
+		}
+		os.Exit(1)
+	}
+	data, _ := os.ReadFile(*file)
 
-	go ExtractFrames(os.Args[1])
-
-	extractCheck := true
-
-	for extractCheck {
-		if _, err := os.Stat("frames/1.jpg"); err == nil {
-			extractCheck = false
+	for _, magic := range imageMagic {
+		if bytes.Contains(data[0:16], magic) {
+			mediaType = "image"
+			break
+		} else {
+			mediaType = "video"
 		}
 	}
 
-	app := tview.NewApplication()
-	box := tview.NewTextView().SetDynamicColors(true)
-	box2 := tview.NewTextView().SetDynamicColors(true)
+	if mediaType == "image" {
+		fmt.Println(renderPicture(data, *scale))
+		os.Exit(0)
+	} else if mediaType == "video" {
 
-	box2.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Rune() == 'd' {
-			i = i + 30
-			if i >= size {
-				i = size - 1
+		go ExtractFrames(*file)
+
+		extractCheck := true
+
+		for extractCheck {
+			if _, err := os.Stat("frames/1.jpg"); err == nil {
+				extractCheck = false
 			}
 		}
-		if event.Rune() == 'a' {
-			i = i - 30
-			if i < 0 {
-				i = 0
-			}
-		}
-		if event.Rune() == ' ' {
-			paused = !paused
-		}
-		return event
-	})
 
-	box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Rune() == 'd' {
-			i = i + 30
-			if i >= size {
-				i = size - 1
-			}
-		}
-		if event.Rune() == 'a' {
-			i = i - 30
-			if i < 0 {
-				i = 0
-			}
-		}
-		if event.Rune() == ' ' {
-			paused = !paused
-		}
-		return event
-	})
+		app := tview.NewApplication()
+		box := tview.NewTextView().SetDynamicColors(true)
+		box2 := tview.NewTextView().SetDynamicColors(true)
 
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	box2.SetText("Loading...")
-	box.SetText("Loading...")
-
-	go func() {
-		for {
-			files, err := os.ReadDir("frames")
-			if err != nil {
-				log.Fatal(err)
-			}
-			size = len(files)
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
-	go func() {
-		loopCheck := true
-
-		go app.SetRoot(box, true).Run()
-		i = 1
-		for loopCheck {
-			if paused {
-				continue
-			}
-			if i != size {
-				start := time.Now()
-				buf, _ := os.ReadFile("frames/" + strconv.Itoa(i) + ".jpg")
-				if boxNum == 0 {
-					app.QueueUpdateDraw(
-						func() {
-							text := renderPicture(buf, skip)
-							w := len(strings.Split(text, "\n")[0])
-							spaceb := w - 37
-							if spaceb < 0 {
-								spaceb = 0
-							}
-							spacet := w - 10
-							if spacet < 0 {
-								spacet = 0
-							}
-							spacert := strings.Repeat(" ", spacet/100)
-							spacerb := strings.Repeat(" ", spaceb/100)
-							ansi := tview.TranslateANSI(text)
-							box.SetText(ansi + "  " + spacert + secondsToMinutes(i/30) + "/" + secondsToMinutes(size/30) +
-								"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->")
-							boxNum = 1
-							app.SetRoot(box2, true)
-						})
-				} else {
-					app.QueueUpdateDraw(
-						func() {
-							text := renderPicture(buf, skip)
-							w := len(strings.Split(text, "\n")[0])
-							spaceb := w - 37
-							if spaceb < 0 {
-								spaceb = 0
-							}
-							spacet := w - 10
-							if spacet < 0 {
-								spacet = 0
-							}
-							spacert := strings.Repeat(" ", spacet/100)
-							spacerb := strings.Repeat(" ", spaceb/100)
-							ansi := tview.TranslateANSI(text)
-							box2.SetText(ansi + "  " + spacert + secondsToMinutes(i/30) + "/" + secondsToMinutes(size/30) +
-								"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->")
-							boxNum = 0
-							app.SetRoot(box, true)
-						})
+		box2.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+			if event.Rune() == 'd' {
+				i = i + 30
+				if i >= size {
+					i = size - 1
 				}
-				for time.Now().Sub(start) < (33 * time.Millisecond) {
-					time.Sleep(1 * time.Millisecond)
-				}
-				i++
 			}
-		}
-	}()
-	<-c
-	app.Stop()
-	os.Exit(0)
+			if event.Rune() == 'a' {
+				i = i - 30
+				if i < 0 {
+					i = 0
+				}
+			}
+			if event.Rune() == ' ' {
+				paused = !paused
+			}
+			return event
+		})
+
+		box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+			if event.Rune() == 'd' {
+				i = i + 30
+				if i >= size {
+					i = size - 1
+				}
+			}
+			if event.Rune() == 'a' {
+				i = i - 30
+				if i < 0 {
+					i = 0
+				}
+			}
+			if event.Rune() == ' ' {
+				paused = !paused
+			}
+			return event
+		})
+
+		c := make(chan os.Signal)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+		box2.SetText("Loading...")
+		box.SetText("Loading...")
+
+		go func() {
+			for {
+				files, err := os.ReadDir("frames")
+				if err != nil {
+					log.Fatal(err)
+				}
+				size = len(files)
+				time.Sleep(100 * time.Millisecond)
+			}
+		}()
+
+		go func() {
+			loopCheck := true
+
+			go app.SetRoot(box, true).Run()
+			i = 1
+			for loopCheck {
+				if paused {
+					continue
+				}
+				if i != size {
+					start := time.Now()
+					buf, _ := os.ReadFile("frames/" + strconv.Itoa(i) + ".jpg")
+					if boxNum == 0 {
+						app.QueueUpdateDraw(
+							func() {
+								text := renderPicture(buf, skip)
+								w := len(strings.Split(text, "\n")[0])
+								spaceb := w - 37
+								if spaceb < 0 {
+									spaceb = 0
+								}
+								spacet := w - 10
+								if spacet < 0 {
+									spacet = 0
+								}
+								spacert := strings.Repeat(" ", spacet/100)
+								spacerb := strings.Repeat(" ", spaceb/100)
+								ansi := tview.TranslateANSI(text)
+								box.SetText(ansi + "  " + spacert + secondsToMinutes(i/30) + "/" + secondsToMinutes(size/30) +
+									"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->")
+								boxNum = 1
+								app.SetRoot(box2, true)
+							})
+					} else {
+						app.QueueUpdateDraw(
+							func() {
+								text := renderPicture(buf, skip)
+								w := len(strings.Split(text, "\n")[0])
+								spaceb := w - 37
+								if spaceb < 0 {
+									spaceb = 0
+								}
+								spacet := w - 10
+								if spacet < 0 {
+									spacet = 0
+								}
+								spacert := strings.Repeat(" ", spacet/100)
+								spacerb := strings.Repeat(" ", spaceb/100)
+								ansi := tview.TranslateANSI(text)
+								box2.SetText(ansi + "  " + spacert + secondsToMinutes(i/30) + "/" + secondsToMinutes(size/30) +
+									"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->")
+								boxNum = 0
+								app.SetRoot(box, true)
+							})
+					}
+					for time.Now().Sub(start) < (33 * time.Millisecond) {
+						time.Sleep(1 * time.Millisecond)
+					}
+					i++
+				}
+			}
+		}()
+		<-c
+		app.Stop()
+		os.Exit(0)
+	}
 }
