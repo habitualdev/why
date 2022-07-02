@@ -3,6 +3,7 @@ module why
 go 1.19
 
 require (
+	github.com/3d0c/gmf v0.0.0-20220425074253-5646e6e80daf
 	github.com/gdamore/tcell/v2 v2.4.1-0.20210905002822-f057f0a857a1
 	github.com/rivo/tview v0.0.0-20220610163003-691f46d6f500
 	golang.org/x/image v0.0.0-20220617043117-41969df76e82

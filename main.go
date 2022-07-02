@@ -119,6 +119,7 @@ func renderPicture(picture []byte, skip int) string {
 	return str
 }
 
+// ExtractFrames Legacy frame extractor, uses ffmpeg to extract frames
 func ExtractFrames(filename string) {
 	// create the frames directory
 	os.Mkdir("frames", 0777)
@@ -128,13 +129,11 @@ func ExtractFrames(filename string) {
 }
 
 func main() {
-
 	var scale = flag.Int("scale", 7, "Scale of the image")
 	var file = flag.String("file", "", "File to render")
 	var mediaType string
 	flag.Parse()
-
-	skip := 0
+	skip := *scale
 	boxNum := 0
 	paused = false
 	// if filename doesn't exist, exit
@@ -142,6 +141,8 @@ func main() {
 	if *file == "" {
 		*file = os.Args[1]
 	}
+	os.Mkdir("frames", 0777)
+
 	if _, err := os.Stat(*file); err != nil {
 		if os.IsNotExist(err) {
 			log.Fatal("File does not exist")
@@ -149,7 +150,6 @@ func main() {
 		os.Exit(1)
 	}
 	data, _ := os.ReadFile(*file)
-
 	for _, magic := range imageMagic {
 		if bytes.Contains(data[0:16], magic) {
 			mediaType = "image"
@@ -158,26 +158,21 @@ func main() {
 			mediaType = "video"
 		}
 	}
-
 	if mediaType == "image" {
 		fmt.Println(renderPicture(data, *scale))
 		os.Exit(0)
 	} else if mediaType == "video" {
-
-		go ExtractFrames(*file)
-
+		go ExtractImages(*file)
 		extractCheck := true
-
 		for extractCheck {
 			if _, err := os.Stat("frames/1.jpg"); err == nil {
 				extractCheck = false
+				time.Sleep(100 * time.Millisecond)
 			}
 		}
-
 		app := tview.NewApplication()
 		box := tview.NewTextView().SetDynamicColors(true)
 		box2 := tview.NewTextView().SetDynamicColors(true)
-
 		box2.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 			if event.Rune() == 'd' {
 				i = i + 30
@@ -194,9 +189,14 @@ func main() {
 			if event.Rune() == ' ' {
 				paused = !paused
 			}
+			if event.Rune() == 'q' {
+				wd, _ := os.Getwd()
+				os.RemoveAll(wd + "/frames")
+				app.Stop()
+				os.Exit(0)
+			}
 			return event
 		})
-
 		box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 			if event.Rune() == 'd' {
 				i = i + 30
@@ -213,15 +213,19 @@ func main() {
 			if event.Rune() == ' ' {
 				paused = !paused
 			}
+			if event.Rune() == 'q' {
+				app.Stop()
+				wd, _ := os.Getwd()
+				os.RemoveAll(wd + "/frames")
+				os.Exit(0)
+			}
 			return event
 		})
-
 		c := make(chan os.Signal)
 		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
 		box2.SetText("Loading...")
 		box.SetText("Loading...")
-
 		go func() {
 			for {
 				files, err := os.ReadDir("frames")
@@ -232,10 +236,8 @@ func main() {
 				time.Sleep(100 * time.Millisecond)
 			}
 		}()
-
 		go func() {
 			loopCheck := true
-
 			go app.SetRoot(box, true).Run()
 			i = 1
 			for loopCheck {
@@ -261,8 +263,8 @@ func main() {
 								spacert := strings.Repeat(" ", spacet/100)
 								spacerb := strings.Repeat(" ", spaceb/100)
 								ansi := tview.TranslateANSI(text)
-								box.SetText(ansi + "  " + spacert + secondsToMinutes(i/30) + "/" + secondsToMinutes(size/30) +
-									"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->")
+								box.SetText(ansi + "  " + spacert + secondsToMinutes(i/24) + "/" + secondsToMinutes(size/24) +
+									"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->  | 'q' to quit")
 								boxNum = 1
 								app.SetRoot(box2, true)
 							})
@@ -282,13 +284,13 @@ func main() {
 								spacert := strings.Repeat(" ", spacet/100)
 								spacerb := strings.Repeat(" ", spaceb/100)
 								ansi := tview.TranslateANSI(text)
-								box2.SetText(ansi + "  " + spacert + secondsToMinutes(i/30) + "/" + secondsToMinutes(size/30) +
-									"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->")
+								box2.SetText(ansi + "  " + spacert + secondsToMinutes(i/24) + "/" + secondsToMinutes(size/24) +
+									"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->  | 'q' to quit")
 								boxNum = 0
 								app.SetRoot(box, true)
 							})
 					}
-					for time.Now().Sub(start) < (33 * time.Millisecond) {
+					for time.Now().Sub(start) < (40 * time.Millisecond) {
 						time.Sleep(1 * time.Millisecond)
 					}
 					i++
