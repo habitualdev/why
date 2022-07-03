@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"github.com/gdamore/tcell/v2"
@@ -131,16 +132,30 @@ func ExtractFrames(filename string) {
 func main() {
 	var scale = flag.Int("scale", 7, "Scale of the image")
 	var file = flag.String("file", "", "File to render")
+	var dl = flag.String("dl", "", "Download a video from Youtube")
 	var mediaType string
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	ctx.Done()
+
+	if *file == "" {
+		*file = os.Args[1]
+	}
 	flag.Parse()
+
+	if *dl != "" {
+		println("Downloading video...")
+		*file = "download.mp4"
+		DownloadYT(*dl)
+		println("Video downloaded!")
+	}
+
 	skip := *scale
 	boxNum := 0
 	paused = false
 	// if filename doesn't exist, exit
 	os.RemoveAll("frames")
-	if *file == "" {
-		*file = os.Args[1]
-	}
+
 	os.Mkdir("frames", 0777)
 
 	if _, err := os.Stat(*file); err != nil {
@@ -162,7 +177,7 @@ func main() {
 		fmt.Println(renderPicture(data, *scale))
 		os.Exit(0)
 	} else if mediaType == "video" {
-		go ExtractImages(*file)
+		go ExtractImages(*file, ctx)
 		extractCheck := true
 		for extractCheck {
 			if _, err := os.Stat("frames/1.jpg"); err == nil {
@@ -190,8 +205,12 @@ func main() {
 				paused = !paused
 			}
 			if event.Rune() == 'q' {
+				cancel()
 				wd, _ := os.Getwd()
 				os.RemoveAll(wd + "/frames")
+				if *dl != "" {
+					os.Remove("download.mp4")
+				}
 				app.Stop()
 				os.Exit(0)
 			}
@@ -214,9 +233,13 @@ func main() {
 				paused = !paused
 			}
 			if event.Rune() == 'q' {
+				cancel()
 				app.Stop()
 				wd, _ := os.Getwd()
 				os.RemoveAll(wd + "/frames")
+				if *dl != "" {
+					os.Remove("download.mp4")
+				}
 				os.Exit(0)
 			}
 			return event
@@ -299,6 +322,7 @@ func main() {
 		}()
 		<-c
 		app.Stop()
+		time.Sleep(100 * time.Millisecond)
 		os.Exit(0)
 	}
 }

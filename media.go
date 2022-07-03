@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/3d0c/gmf"
 	"image"
@@ -11,12 +12,12 @@ import (
 )
 
 var (
-	fileCount int = 1
+	fileCount = 1
 	extention string
 	format    string
 )
 
-func ExtractImages(srcFileName string) {
+func ExtractImages(srcFileName string, ctx context.Context) {
 	var (
 		swsctx *gmf.SwsCtx
 	)
@@ -43,7 +44,7 @@ func ExtractImages(srcFileName string) {
 
 	cc.SetTimeBase(gmf.AVR{Num: 1, Den: 1})
 
-	cc.SetPixFmt(gmf.AV_PIX_FMT_RGBA).SetWidth(srcVideoStream.CodecCtx().Width() / (5 / 3)).SetHeight(srcVideoStream.CodecCtx().Height() / (5 / 3))
+	cc.SetPixFmt(gmf.AV_PIX_FMT_RGBA).SetWidth(srcVideoStream.CodecCtx().Width() / (6 / 3)).SetHeight(srcVideoStream.CodecCtx().Height() / (6 / 3))
 	if codec.IsExperimental() {
 		cc.SetStrictCompliance(gmf.FF_COMPLIANCE_EXPERIMENTAL)
 	}
@@ -62,7 +63,7 @@ func ExtractImages(srcFileName string) {
 	// convert source pix_fmt into AV_PIX_FMT_RGBA
 	// which is set up by codec context above
 	icc := srcVideoStream.CodecCtx()
-	if swsctx, err = gmf.NewSwsCtx(icc.Width(), icc.Height(), icc.PixFmt(), cc.Width(), cc.Height(), cc.PixFmt(), gmf.SWS_BICUBIC); err != nil {
+	if swsctx, err = gmf.NewSwsCtx(icc.Width(), icc.Height(), icc.PixFmt(), cc.Width(), cc.Height(), cc.PixFmt(), gmf.SWS_FAST_BILINEAR); err != nil {
 		panic(err)
 	}
 	defer swsctx.Free()
@@ -74,52 +75,57 @@ func ExtractImages(srcFileName string) {
 	)
 
 	for {
-		if drain >= 0 {
-			break
-		}
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if drain >= 0 {
+				break
+			}
 
-		pkt, err = inputCtx.GetNextPacket()
-		if err != nil && err != io.EOF {
+			pkt, err = inputCtx.GetNextPacket()
+			if err != nil && err != io.EOF {
+				if pkt != nil {
+					pkt.Free()
+				}
+				log.Printf("error getting next packet - %s", err)
+				break
+			} else if err != nil && pkt == nil {
+				drain = 0
+			}
+
+			if pkt != nil && pkt.StreamIndex() != srcVideoStream.Index() {
+				continue
+			}
+
+			frames, err = ist.CodecCtx().Decode(pkt)
+			if err != nil {
+				log.Printf("Fatal error during decoding - %s\n", err)
+				break
+			}
+
+			// Decode() method doesn't treat EAGAIN and EOF as errors
+			// it returns empty frames slice instead. Countinue until
+			// input EOF or frames received.
+			if len(frames) == 0 && drain < 0 {
+				continue
+			}
+
+			if frames, err = gmf.DefaultRescaler(swsctx, frames); err != nil {
+				panic(err)
+			}
+
+			encode(cc, frames, drain)
+
+			for i, _ := range frames {
+				frames[i].Free()
+				frameCount++
+			}
+
 			if pkt != nil {
 				pkt.Free()
+				pkt = nil
 			}
-			log.Printf("error getting next packet - %s", err)
-			break
-		} else if err != nil && pkt == nil {
-			drain = 0
-		}
-
-		if pkt != nil && pkt.StreamIndex() != srcVideoStream.Index() {
-			continue
-		}
-
-		frames, err = ist.CodecCtx().Decode(pkt)
-		if err != nil {
-			log.Printf("Fatal error during decoding - %s\n", err)
-			break
-		}
-
-		// Decode() method doesn't treat EAGAIN and EOF as errors
-		// it returns empty frames slice instead. Countinue until
-		// input EOF or frames received.
-		if len(frames) == 0 && drain < 0 {
-			continue
-		}
-
-		if frames, err = gmf.DefaultRescaler(swsctx, frames); err != nil {
-			panic(err)
-		}
-
-		encode(cc, frames, drain)
-
-		for i, _ := range frames {
-			frames[i].Free()
-			frameCount++
-		}
-
-		if pkt != nil {
-			pkt.Free()
-			pkt = nil
 		}
 	}
 
