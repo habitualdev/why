@@ -8,6 +8,7 @@ import (
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
 	"log"
+	"math"
 	"os"
 	"time"
 )
@@ -34,6 +35,7 @@ func NewAudio(file string) Player {
 	newPlayer.File.FileName = file
 	newPlayer.ControlChannel = make(chan string, 1024)
 	newPlayer.File.Streamer, newPlayer.File.Format, err = mp3.Decode(f)
+	newPlayer.CurrentPosition = 0
 	if err != nil {
 		panic(err)
 	}
@@ -78,11 +80,18 @@ func (p Player) Start(ctx context.Context) {
 				}
 				p.File.Streamer.Seek(newPos)
 			default:
+
 				continue
 			}
-
 			speaker.Unlock()
 		default:
+			p.CurrentPosition = CurrentPosition
+			videoPosition := p.File.Format.SampleRate.N(time.Second) * p.CurrentPosition
+			if int(math.Abs(float64(videoPosition-p.File.Streamer.Position()))) > p.File.Format.SampleRate.N(time.Second) {
+				speaker.Lock()
+				p.File.Streamer.Seek(int(p.File.Format.SampleRate.N(time.Second) * p.CurrentPosition))
+				speaker.Unlock()
+			}
 			continue
 		}
 	}

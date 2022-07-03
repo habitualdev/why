@@ -30,6 +30,8 @@ var imageMagic = [][]byte{{0x89, 0x50, 0x4E, 0x47, 0x0D}, {0x42, 0x4D}, {0xFF, 0
 var size int
 var i int
 var paused bool
+var skip int
+var CurrentPosition int
 
 func secondsToMinutes(inSeconds int) string {
 	minutes := inSeconds / 60
@@ -111,7 +113,7 @@ func openImage(picture []byte) image.Image {
 	return img
 }
 
-func renderPicture(picture []byte, skip int) string {
+func renderPicture(picture []byte) string {
 	if skip == 0 {
 		skip = 7
 	}
@@ -150,7 +152,7 @@ func main() {
 		println("Video downloaded!")
 	}
 
-	skip := *scale
+	skip = *scale
 	boxNum := 0
 	paused = false
 
@@ -175,7 +177,8 @@ func main() {
 	}
 
 	if mediaType == "image" {
-		fmt.Println(renderPicture(data, *scale))
+		skip = *scale
+		fmt.Println(renderPicture(data))
 		os.Exit(0)
 	} else if mediaType == "video" {
 		go ExtractImages(*file, ctx)
@@ -225,6 +228,18 @@ func main() {
 				app.Stop()
 				os.Exit(0)
 			}
+			if event.Rune() == 'f' {
+				skip--
+				if skip < 1 {
+					skip = 1
+				}
+			}
+			if event.Rune() == 'r' {
+				skip++
+				if skip > 10 {
+					skip = 10
+				}
+			}
 			return event
 		})
 		box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -259,6 +274,18 @@ func main() {
 				app.Stop()
 				os.Exit(0)
 			}
+			if event.Rune() == 'f' {
+				skip--
+				if skip < 1 {
+					skip = 1
+				}
+			}
+			if event.Rune() == 'r' {
+				skip++
+				if skip > 10 {
+					skip = 10
+				}
+			}
 			return event
 		})
 		c := make(chan os.Signal)
@@ -291,7 +318,7 @@ func main() {
 					if boxNum == 0 {
 						app.QueueUpdateDraw(
 							func() {
-								text := renderPicture(buf, skip)
+								text := renderPicture(buf)
 								w := len(strings.Split(text, "\n")[0])
 								spaceb := w - 37
 								if spaceb < 0 {
@@ -305,14 +332,15 @@ func main() {
 								spacerb := strings.Repeat(" ", spaceb/100)
 								ansi := tview.TranslateANSI(text)
 								box.SetText(ansi + "  " + spacert + secondsToMinutes(i/24) + "/" + secondsToMinutes(size/24) +
-									"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->  | 'q' to quit")
+									"\n" + spacerb + "<--- 'a' | spacebar |  'd' --->  |  'q'   |   'f'    |   'r'" +
+									"\n" + spacerb + " Rewind  |   pause  |  Fast Fwd  |  quit  | scale ▲  | scale ▼")
 								boxNum = 1
 								app.SetRoot(box2, true)
 							})
 					} else {
 						app.QueueUpdateDraw(
 							func() {
-								text := renderPicture(buf, skip)
+								text := renderPicture(buf)
 								w := len(strings.Split(text, "\n")[0])
 								spaceb := w - 37
 								if spaceb < 0 {
@@ -326,7 +354,8 @@ func main() {
 								spacerb := strings.Repeat(" ", spaceb/100)
 								ansi := tview.TranslateANSI(text)
 								box2.SetText(ansi + "  " + spacert + secondsToMinutes(i/24) + "/" + secondsToMinutes(size/24) +
-									"\n" + spacerb + "<--- 'a' | spacebar:pause |  'd' --->  | 'q' to quit")
+									"\n" + spacerb + "<--- 'a' | spacebar |  'd' --->  |  'q'   |   'f'    |   'r'" +
+									"\n" + spacerb + " Rewind  |   pause  |  Fast Fwd  |  quit  | scale ▲  | scale ▼")
 								boxNum = 0
 								app.SetRoot(box, true)
 							})
@@ -334,6 +363,7 @@ func main() {
 					for time.Now().Sub(start) < (40 * time.Millisecond) {
 						time.Sleep(1 * time.Millisecond)
 					}
+					CurrentPosition = i / 24
 					i++
 				}
 			}
