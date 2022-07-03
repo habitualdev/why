@@ -13,8 +13,18 @@ Requires ffmpeg, currently only works on linux (tested on ubuntu 22.04)
 
 Turns out its not too hard to draw a picture inside a terminal. The unicode "half block" character (▀) is basically a pixel, so when combined with ansi escape codes, you can individually colorize each one. All video is is images played one after another, so I use ffmpeg to make me a directory of images I then iterate through. To increase display performance, there are actually 2 text windows that alternate being visible, which reduces screen tearing from the text printing across it.
 
+
+Now with audio support! (I'm not sure if this is the best way to do it, but it works for now)
 ## Usage
 ```
+  -dl string
+        Download a video from YouTube (Video ID)
+  -file string
+        File to render
+  -scale int
+        Scale of the image (default 7)
+
+Examples:
 ./why -file <video> -scale <optional:default 7> 
 ./why <video>
 ```

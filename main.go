@@ -137,11 +137,11 @@ func main() {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	ctx.Done()
+	flag.Parse()
 
 	if *file == "" {
 		*file = os.Args[1]
 	}
-	flag.Parse()
 
 	if *dl != "" {
 		println("Downloading video...")
@@ -153,9 +153,8 @@ func main() {
 	skip := *scale
 	boxNum := 0
 	paused = false
-	// if filename doesn't exist, exit
-	os.RemoveAll("frames")
 
+	os.RemoveAll("frames")
 	os.Mkdir("frames", 0777)
 
 	if _, err := os.Stat(*file); err != nil {
@@ -164,6 +163,7 @@ func main() {
 		}
 		os.Exit(1)
 	}
+
 	data, _ := os.ReadFile(*file)
 	for _, magic := range imageMagic {
 		if bytes.Contains(data[0:16], magic) {
@@ -173,11 +173,16 @@ func main() {
 			mediaType = "video"
 		}
 	}
+
 	if mediaType == "image" {
 		fmt.Println(renderPicture(data, *scale))
 		os.Exit(0)
 	} else if mediaType == "video" {
 		go ExtractImages(*file, ctx)
+		VidToAudio(*file)
+
+		audioPlayer := NewAudio("audio.mp3")
+
 		extractCheck := true
 		for extractCheck {
 			if _, err := os.Stat("frames/1.jpg"); err == nil {
@@ -190,19 +195,22 @@ func main() {
 		box2 := tview.NewTextView().SetDynamicColors(true)
 		box2.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 			if event.Rune() == 'd' {
-				i = i + 30
+				i = i + 24
 				if i >= size {
 					i = size - 1
 				}
+				audioPlayer.ControlChannel <- "forward"
 			}
 			if event.Rune() == 'a' {
-				i = i - 30
+				i = i - 24
 				if i < 0 {
 					i = 0
 				}
+				audioPlayer.ControlChannel <- "back"
 			}
 			if event.Rune() == ' ' {
 				paused = !paused
+				audioPlayer.ControlChannel <- "pause"
 			}
 			if event.Rune() == 'q' {
 				cancel()
@@ -210,6 +218,9 @@ func main() {
 				os.RemoveAll(wd + "/frames")
 				if *dl != "" {
 					os.Remove("download.mp4")
+				}
+				if _, err := os.Stat("audio.mp3"); err == nil {
+					os.Remove("audio.mp3")
 				}
 				app.Stop()
 				os.Exit(0)
@@ -218,28 +229,34 @@ func main() {
 		})
 		box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 			if event.Rune() == 'd' {
-				i = i + 30
+				i = i + 24
 				if i >= size {
 					i = size - 1
 				}
+				audioPlayer.ControlChannel <- "forward"
 			}
 			if event.Rune() == 'a' {
-				i = i - 30
+				i = i - 24
 				if i < 0 {
 					i = 0
 				}
+				audioPlayer.ControlChannel <- "back"
 			}
 			if event.Rune() == ' ' {
 				paused = !paused
+				audioPlayer.ControlChannel <- "pause"
 			}
 			if event.Rune() == 'q' {
 				cancel()
-				app.Stop()
 				wd, _ := os.Getwd()
 				os.RemoveAll(wd + "/frames")
 				if *dl != "" {
 					os.Remove("download.mp4")
 				}
+				if _, err := os.Stat("audio.mp3"); err == nil {
+					os.Remove("audio.mp3")
+				}
+				app.Stop()
 				os.Exit(0)
 			}
 			return event
@@ -249,6 +266,7 @@ func main() {
 
 		box2.SetText("Loading...")
 		box.SetText("Loading...")
+		go audioPlayer.Start(ctx)
 		go func() {
 			for {
 				files, err := os.ReadDir("frames")
