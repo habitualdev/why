@@ -7,8 +7,14 @@ import (
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
+	"github.com/jdxyw/generativeart"
+	"github.com/jdxyw/generativeart/arts"
+	"github.com/jdxyw/generativeart/common"
+	tmp3 "github.com/tcolgate/mp3"
+	"image/color"
+	"io"
 	"log"
-	"math"
+	"math/rand"
 	"os"
 	"time"
 )
@@ -20,9 +26,9 @@ type AudioFile struct {
 }
 
 type Player struct {
-	File            AudioFile
-	CurrentPosition int
-	ControlChannel  chan string
+	File           AudioFile
+	ControlChannel chan string
+	IgnoreSync     bool
 }
 
 func NewAudio(file string) Player {
@@ -35,7 +41,6 @@ func NewAudio(file string) Player {
 	newPlayer.File.FileName = file
 	newPlayer.ControlChannel = make(chan string, 1024)
 	newPlayer.File.Streamer, newPlayer.File.Format, err = mp3.Decode(f)
-	newPlayer.CurrentPosition = 0
 	if err != nil {
 		panic(err)
 	}
@@ -85,12 +90,8 @@ func (p Player) Start(ctx context.Context) {
 			}
 			speaker.Unlock()
 		default:
-			p.CurrentPosition = CurrentPosition
-			videoPosition := p.File.Format.SampleRate.N(time.Second) * p.CurrentPosition
-			if int(math.Abs(float64(videoPosition-p.File.Streamer.Position()))) > p.File.Format.SampleRate.N(time.Second) {
-				speaker.Lock()
-				p.File.Streamer.Seek(int(p.File.Format.SampleRate.N(time.Second) * p.CurrentPosition))
-				speaker.Unlock()
+			if p.IgnoreSync {
+				continue
 			}
 			continue
 		}
@@ -232,4 +233,62 @@ func VidToAudio(file string) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+func cmap(r, m1, m2 float64) color.RGBA {
+	rgb := color.RGBA{
+		uint8(common.Constrain(m1*200*r, 0, 255)),
+		uint8(common.Constrain(r*200, 0, 255)),
+		uint8(common.Constrain(m2*255*r, 70, 255)),
+		255,
+	}
+	return rgb
+}
+
+func GetMp3Length(file string) int {
+	t := 0.0
+
+	r, err := os.Open(file)
+	if err != nil {
+		fmt.Println(err)
+		return 0
+	}
+
+	d := tmp3.NewDecoder(r)
+	var f tmp3.Frame
+	skipped := 0
+
+	for {
+
+		if err := d.Decode(&f, &skipped); err != nil {
+			if err == io.EOF {
+				break
+			}
+			fmt.Println(err)
+			return 0
+		}
+
+		t = t + f.Duration().Seconds()
+	}
+
+	return int(t)
+}
+
+func Visualizer() []byte {
+	rand.Seed(time.Now().Unix())
+	c := generativeart.NewCanva(300, 300)
+	colors := []color.RGBA{
+		{0xF9, 0xC8, 0x0E, 0xFF},
+		{0xF8, 0x66, 0x24, 0xFF},
+		{0xEA, 0x35, 0x46, 0xFF},
+		{0x66, 0x2E, 0x9B, 0xFF},
+		{0x43, 0xBC, 0xCD, 0xFF},
+	}
+	c.SetBackground(common.Black)
+	c.FillBackground()
+	c.SetColorSchema(colors)
+	c.SetIterations(400)
+	c.Draw(arts.NewPixelHole(60))
+	imageBytes, _ := c.ToBytes()
+	return imageBytes
 }

@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func DownloadYT(url string) {
+func DownloadYT(url string) int {
 
 	client := youtube.Client{}
 
@@ -23,6 +23,7 @@ func DownloadYT(url string) {
 			videoIndex = n
 		}
 	}
+
 	stream, _, err := client.GetStream(video, &formats[videoIndex])
 	if err != nil {
 		panic(err)
@@ -37,4 +38,5 @@ func DownloadYT(url string) {
 	if err != nil {
 		panic(err)
 	}
+	return int(video.Duration.Seconds())
 }

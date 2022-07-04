@@ -31,7 +31,7 @@ var size int
 var i int
 var paused bool
 var skip int
-var CurrentPosition int
+var TotalDuration int
 
 func secondsToMinutes(inSeconds int) string {
 	minutes := inSeconds / 60
@@ -132,6 +132,7 @@ func ExtractFrames(filename string) {
 }
 
 func main() {
+	var displayName string
 	var scale = flag.Int("scale", 7, "Scale of the image")
 	var file = flag.String("file", "", "File to render")
 	var dl = flag.String("dl", "", "Download a video from Youtube")
@@ -141,15 +142,23 @@ func main() {
 	ctx.Done()
 	flag.Parse()
 
-	if *file == "" {
-		*file = os.Args[1]
+	if *file == "" && *dl == "" {
+		if _, err := os.Stat(os.Args[1]); err == nil {
+			*file = os.Args[1]
+		} else {
+			fmt.Println("No file specified")
+			os.Exit(1)
+		}
 	}
+
+	displayName = *file
 
 	if *dl != "" {
 		println("Downloading video...")
 		*file = "download.mp4"
-		DownloadYT(*dl)
+		TotalDuration = DownloadYT(*dl)
 		println("Video downloaded!")
+		displayName = "Downloaded Video: " + *dl
 	}
 
 	skip = *scale
@@ -168,6 +177,10 @@ func main() {
 
 	data, _ := os.ReadFile(*file)
 	for _, magic := range imageMagic {
+		if bytes.Contains(data[0:4], []byte("ID3")) {
+			mediaType = "audio"
+			break
+		}
 		if bytes.Contains(data[0:16], magic) {
 			mediaType = "image"
 			break
@@ -181,11 +194,10 @@ func main() {
 		fmt.Println(renderPicture(data))
 		os.Exit(0)
 	} else if mediaType == "video" {
-		go ExtractImages(*file, ctx)
+
+		NumberFrames := ExtractImages(*file, ctx)
 		VidToAudio(*file)
-
 		audioPlayer := NewAudio("audio.mp3")
-
 		extractCheck := true
 		for extractCheck {
 			if _, err := os.Stat("frames/1.jpg"); err == nil {
@@ -290,9 +302,12 @@ func main() {
 		})
 		c := make(chan os.Signal)
 		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
 		box2.SetText("Loading...")
 		box.SetText("Loading...")
+
+		fps := NumberFrames / TotalDuration
+		mpf := 1000 / fps
+
 		go audioPlayer.Start(ctx)
 		go func() {
 			for {
@@ -331,7 +346,8 @@ func main() {
 								spacert := strings.Repeat(" ", spacet/100)
 								spacerb := strings.Repeat(" ", spaceb/100)
 								ansi := tview.TranslateANSI(text)
-								box.SetText(ansi + "  " + spacert + secondsToMinutes(i/24) + "/" + secondsToMinutes(size/24) +
+								box.SetText(ansi + "  " + spacert + secondsToMinutes(i/mpf) + "/" + secondsToMinutes(TotalDuration) +
+									"\n" + spacerb + "FileName: " + displayName +
 									"\n" + spacerb + "<--- 'a' | spacebar |  'd' --->  |  'q'   |   'f'    |   'r'" +
 									"\n" + spacerb + " Rewind  |   pause  |  Fast Fwd  |  quit  | scale ▲  | scale ▼")
 								boxNum = 1
@@ -353,17 +369,17 @@ func main() {
 								spacert := strings.Repeat(" ", spacet/100)
 								spacerb := strings.Repeat(" ", spaceb/100)
 								ansi := tview.TranslateANSI(text)
-								box2.SetText(ansi + "  " + spacert + secondsToMinutes(i/24) + "/" + secondsToMinutes(size/24) +
+								box2.SetText(ansi + "  " + spacert + secondsToMinutes(i/mpf-1) + "/" + secondsToMinutes(TotalDuration) +
+									"\n" + spacerb + "FileName: " + displayName +
 									"\n" + spacerb + "<--- 'a' | spacebar |  'd' --->  |  'q'   |   'f'    |   'r'" +
 									"\n" + spacerb + " Rewind  |   pause  |  Fast Fwd  |  quit  | scale ▲  | scale ▼")
 								boxNum = 0
 								app.SetRoot(box, true)
 							})
 					}
-					for time.Now().Sub(start) < (40 * time.Millisecond) {
+					for time.Now().Sub(start) < (time.Duration(mpf) * time.Millisecond) {
 						time.Sleep(1 * time.Millisecond)
 					}
-					CurrentPosition = i / 24
 					i++
 				}
 			}
@@ -372,5 +388,91 @@ func main() {
 		app.Stop()
 		time.Sleep(100 * time.Millisecond)
 		os.Exit(0)
+	} else if mediaType == "audio" {
+		audioPlayer := NewAudio(*file)
+		audioPlayer.IgnoreSync = true
+		app := tview.NewApplication()
+		box := tview.NewTextView()
+		box.SetDynamicColors(true)
+		box.SetText("Loading...")
+
+		box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+			if event.Rune() == 'd' {
+				i = i + 24
+				if i >= size {
+					i = size - 1
+				}
+				audioPlayer.ControlChannel <- "forward"
+			}
+			if event.Rune() == 'a' {
+				i = i - 24
+				if i < 0 {
+					i = 0
+				}
+				audioPlayer.ControlChannel <- "back"
+			}
+			if event.Rune() == ' ' {
+				paused = !paused
+				audioPlayer.ControlChannel <- "pause"
+			}
+			if event.Rune() == 'q' {
+				cancel()
+				app.Stop()
+				os.Exit(0)
+			}
+			if event.Rune() == 'f' {
+				skip--
+				if skip < 1 {
+					skip = 1
+				}
+			}
+			if event.Rune() == 'r' {
+				skip++
+				if skip > 10 {
+					skip = 10
+				}
+			}
+			return event
+		})
+		go audioPlayer.Start(ctx)
+		go app.SetRoot(box, true).Run()
+		var imageData []byte
+		imageData = Visualizer()
+		go func() {
+			for {
+				imageData = Visualizer()
+			}
+		}()
+		i = 1
+		size = GetMp3Length(*file)
+		for {
+			start := time.Now()
+			app.QueueUpdateDraw(
+				func() {
+
+					text := renderPicture(imageData)
+					w := len(strings.Split(text, "\n")[0])
+					spaceb := w - 37
+					if spaceb < 0 {
+						spaceb = 0
+					}
+					spacet := w - 10
+					if spacet < 0 {
+						spacet = 0
+					}
+					spacert := strings.Repeat(" ", spacet/100)
+					spacerb := strings.Repeat(" ", spaceb/100)
+					ansi := tview.TranslateANSI(text)
+					box.SetText(ansi + "  " + spacert + secondsToMinutes(i/24) + "/" + secondsToMinutes(size) +
+						"\n" + spacerb + "File: " + *file +
+						"\n" + spacerb + "<--- 'a' | spacebar |  'd' --->  |  'q'   |   'f'    |   'r'" +
+						"\n" + spacerb + " Rewind  |   pause  |  Fast Fwd  |  quit  | scale ▲  | scale ▼")
+
+				})
+			for time.Now().Sub(start) < (40 * time.Millisecond) {
+				time.Sleep(1 * time.Millisecond)
+			}
+			i++
+		}
 	}
 }

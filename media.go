@@ -17,7 +17,7 @@ var (
 	format    string
 )
 
-func ExtractImages(srcFileName string, ctx context.Context) {
+func ExtractImages(srcFileName string, ctx context.Context) int {
 	var (
 		swsctx *gmf.SwsCtx
 	)
@@ -31,7 +31,7 @@ func ExtractImages(srcFileName string, ctx context.Context) {
 	srcVideoStream, err := inputCtx.GetBestStream(gmf.AVMEDIA_TYPE_VIDEO)
 	if err != nil {
 		log.Printf("No video stream found in '%s'\n", srcFileName)
-		return
+		return 0
 	}
 
 	codec, err := gmf.FindEncoder(gmf.AV_CODEC_ID_RAWVIDEO)
@@ -77,10 +77,10 @@ func ExtractImages(srcFileName string, ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return 0
 		default:
 			if drain >= 0 {
-				break
+				goto Finish
 			}
 
 			pkt, err = inputCtx.GetNextPacket()
@@ -128,12 +128,14 @@ func ExtractImages(srcFileName string, ctx context.Context) {
 			}
 		}
 	}
-
+Finish:
 	for i := 0; i < inputCtx.StreamsCnt(); i++ {
 		st, _ := inputCtx.GetStream(i)
 		st.CodecCtx().Free()
 		st.Free()
 	}
+
+	return frameCount
 }
 
 func encode(cc *gmf.CodecCtx, frames []*gmf.Frame, drain int) {
@@ -144,7 +146,6 @@ func encode(cc *gmf.CodecCtx, frames []*gmf.Frame, drain int) {
 	if len(packets) == 0 {
 		return
 	}
-
 	for _, p := range packets {
 		width, height := cc.Width(), cc.Height()
 

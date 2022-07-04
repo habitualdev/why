@@ -6,8 +6,10 @@ require (
 	github.com/3d0c/gmf v0.0.0-20220425074253-5646e6e80daf
 	github.com/faiface/beep v1.1.0
 	github.com/gdamore/tcell/v2 v2.4.1-0.20210905002822-f057f0a857a1
+	github.com/jdxyw/generativeart v0.0.0-20220127024657-50049f153090
 	github.com/kkdai/youtube/v2 v2.7.15
 	github.com/rivo/tview v0.0.0-20220610163003-691f46d6f500
+	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	golang.org/x/image v0.0.0-20220617043117-41969df76e82
 )
 
@@ -15,8 +17,10 @@ require (
 	github.com/bitly/go-simplejson v0.5.0 // indirect
 	github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91 // indirect
 	github.com/dop251/goja v0.0.0-20220516123900-4418d4575a41 // indirect
+	github.com/fogleman/gg v1.3.0 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/hajimehoshi/go-mp3 v0.3.0 // indirect
 	github.com/hajimehoshi/oto v0.7.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
