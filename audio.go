@@ -99,12 +99,12 @@ func (p Player) Start(ctx context.Context) {
 }
 
 func VidToAudio(file string) (string, error) {
-	/// input
+	gmf.LogSetLevel(gmf.AV_LOG_QUIET)
+
 	mic, err := gmf.NewInputCtx(file)
 	if err != nil {
 		log.Fatalf("Could not open input context: %s", err)
 	}
-	//mic.Dump()
 
 	ast, err := mic.GetBestStream(gmf.AVMEDIA_TYPE_AUDIO)
 	if err != nil {
@@ -181,14 +181,11 @@ func VidToAudio(file string) (string, error) {
 		log.Fatal(err.Error())
 	}
 
-	//outputCtx.Dump()
-
 	count := 0
 	for packet := range mic.GetNewPackets() {
 		srcFrames, err := cc.Decode(packet)
 		packet.Free()
 		if err != nil {
-			//log.Println("capture audio error:", err)
 			continue
 		}
 

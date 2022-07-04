@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/briandowns/spinner"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	_ "golang.org/x/image/bmp"
@@ -32,6 +33,21 @@ var i int
 var paused bool
 var skip int
 var TotalDuration int
+
+func quiet() func() {
+	null, _ := os.Open(os.DevNull)
+	sout := os.Stdout
+	serr := os.Stderr
+	os.Stdout = null
+	os.Stderr = null
+	log.SetOutput(null)
+	return func() {
+		defer null.Close()
+		os.Stdout = sout
+		os.Stderr = serr
+		log.SetOutput(os.Stderr)
+	}
+}
 
 func secondsToMinutes(inSeconds int) string {
 	minutes := inSeconds / 60
@@ -194,9 +210,16 @@ func main() {
 		fmt.Println(renderPicture(data))
 		os.Exit(0)
 	} else if mediaType == "video" {
-
+		s := spinner.New(spinner.CharSets[36], 100*time.Millisecond)
+		s.Prefix = "Extracting frames... "
+		s.Start()
 		NumberFrames := ExtractImages(*file, ctx)
+		s.Stop()
+		sa := spinner.New(spinner.CharSets[36], 100*time.Millisecond)
+		sa.Prefix = "Creating audio track... "
+		sa.Start()
 		VidToAudio(*file)
+		sa.Stop()
 		audioPlayer := NewAudio("audio.mp3")
 		extractCheck := true
 		for extractCheck {
@@ -305,6 +328,9 @@ func main() {
 		box2.SetText("Loading...")
 		box.SetText("Loading...")
 
+		if TotalDuration == 0 {
+			TotalDuration = GetMp3Length("audio.mp3")
+		}
 		fps := NumberFrames / TotalDuration
 		mpf := 1000 / fps
 
@@ -369,7 +395,7 @@ func main() {
 								spacert := strings.Repeat(" ", spacet/100)
 								spacerb := strings.Repeat(" ", spaceb/100)
 								ansi := tview.TranslateANSI(text)
-								box2.SetText(ansi + "  " + spacert + secondsToMinutes(i/mpf-1) + "/" + secondsToMinutes(TotalDuration) +
+								box2.SetText(ansi + "  " + spacert + secondsToMinutes(i/mpf) + "/" + secondsToMinutes(TotalDuration) +
 									"\n" + spacerb + "FileName: " + displayName +
 									"\n" + spacerb + "<--- 'a' | spacebar |  'd' --->  |  'q'   |   'f'    |   'r'" +
 									"\n" + spacerb + " Rewind  |   pause  |  Fast Fwd  |  quit  | scale ▲  | scale ▼")
