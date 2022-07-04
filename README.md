@@ -7,7 +7,6 @@
 Well, I sometimes I do. Nice for testing stuff on remote VPS's without having to pull them locally. Now also supports
 printing jpeg, bmp, and png images to the terminal.
 
-Requires ffmpeg, currently only works on linux (tested on ubuntu 22.04)
 
 ## How do I work?
 
