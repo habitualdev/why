@@ -42,13 +42,17 @@ func NewAudio(file string) Player {
 	newPlayer.ControlChannel = make(chan string, 1024)
 	newPlayer.File.Streamer, newPlayer.File.Format, err = mp3.Decode(f)
 	if err != nil {
-		panic(err)
+		log.Println("Unable to decode mp3 file: " + err.Error())
+		return Player{}
 	}
 
 	return newPlayer
 }
 
 func (p Player) Start(ctx context.Context) {
+	if p.File.Streamer == nil {
+		return
+	}
 	err := speaker.Init(p.File.Format.SampleRate, p.File.Format.SampleRate.N(time.Second/10))
 	if err != nil {
 		log.Println("Unable to intialize speakers")
