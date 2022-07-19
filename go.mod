@@ -1,4 +1,4 @@
-module why
+module github.com/habitualdev/why
 
 go 1.19
 
