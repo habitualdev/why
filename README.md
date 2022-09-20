@@ -4,13 +4,13 @@
 
 "Why? is the question you ask yourself when you see this project. Who wants to watch a video in the terminal?
 
-Well, I sometimes I do. Nice for testing stuff on remote VPS's without having to pull them locally. Now also supports
+Well, sometimes I do. Nice for testing stuff on remote VPS without having to pull them locally. Now also supports
 printing jpeg, bmp, and png images to the terminal.
 
 
 ## How do I work?
 
-Turns out its not too hard to draw a picture inside a terminal. The unicode "half block" character (▀) is basically a pixel, so when combined with ansi escape codes, you can individually colorize each one. All video is is images played one after another, so I use ffmpeg to make me a directory of images I then iterate through. To increase display performance, there are actually 2 text windows that alternate being visible, which reduces screen tearing from the text printing across it.
+Turns out it's not too hard to draw a picture inside a terminal. The unicode "half block" character (▀) is a *basically* pixel, so when combined with ANSI escape codes, you can individually colourize each one. All video is just a series of images played one after another. I use FFmpeg to make myself a directory of images that  I then iterate through. To increase display performance, 2 text windows alternate in visibility, which greatly reduces screen tearing from the text printing across it.
 
 
 Now with audio support! (I'm not sure if this is the best way to do it, but it works for now)
