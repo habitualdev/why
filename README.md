@@ -2,15 +2,15 @@
 
 ## The world's most useless video player
 
-"Why? is the question you ask yourself when you see this project. Who wants to watch a video in the terminal?
+"Why?" - This is probably a question you ask yourself when you see this project. Who wants to watch a video in the terminal?
 
 Well, sometimes I do. Nice for testing stuff on remote VPS without having to pull them locally. Now also supports
 printing jpeg, bmp, and png images to the terminal.
 
 
-## How do I work?
+## How does it work?
 
-Turns out it's not too hard to draw a picture inside a terminal. The unicode "half block" character (▀) is a *basically* pixel, so when combined with ANSI escape codes, you can individually colourize each one. All video is just a series of images played one after another. I use FFmpeg to make myself a directory of images that  I then iterate through. To increase display performance, 2 text windows alternate in visibility, which greatly reduces screen tearing from the text printing across it.
+Turns out it's not too hard to draw a picture inside the terminal. The unicode "half block" character (▀) is a *basically* pixel, so when combined with ANSI escape codes, it is possible to individually colourize each one. A video is just a series of images played one after another very fast in order to achieve a sense of movement. We use FFmpeg to make a directory of images that are later on iterated through and displayed. To increase display performance, 2 text windows alternate in visibility, which greatly reduces screen tearing from the text printing across them.
 
 
 Now with audio support! (I'm not sure if this is the best way to do it, but it works for now)
